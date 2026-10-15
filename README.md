@@ -48,13 +48,50 @@ flowchart LR
    - **Silver Lake (`lake/silver/`)**: Cleaned, typed, normalized transactions partitioned by `event_date`.
 
 5. **Operations Dashboard (`dashboard/app.py`)**:
-   - High-end dark-themed financial monitoring cockpit built with Streamlit and Plotly across **6 interactive pages**:
-     - **Page 1: 🔴 Live Telemetry & Monitoring**: Real-time throughput (TPS), alert rate, severity matrix donut chart, 30-min timeseries velocity pulse, gross financial volume, and live transaction feed.
+   - High-end dark-themed financial monitoring cockpit built with Streamlit and Plotly across **7 interactive pages** with embedded gallery tabs:
+     - **Page 1: 🔴 Live Telemetry & Monitoring**: Features top-level tabbed views between **Live Operations Telemetry** (real-time TPS, alert rate, severity matrix donut chart, 30-min timeseries velocity pulse, gross financial volume, live transaction feed) and **Screenshots** gallery.
      - **Page 2: 🔍 Fraud Forensic Investigation**: Multi-dimensional search (Account ID, Transaction UUID, severity, rule, min amount), interactive alert inspector, Account 360° forensic timeline scatter chart, and full account ledger.
      - **Page 3: 💰 Financial Risk & Merchant Analytics**: Total Value-at-Risk ($ flagged vs gross volume), fraud ticket size multiples, merchant risk ranking leaderboard & heatmaps, transaction modality breakdown, and log-scale amount distributions.
      - **Page 4: ⚙️ Detection Rules & Interactive Simulator**: Trigger performance by rule, live interactive sandbox simulator to test custom transaction attributes against the engine in real-time, and live YAML rule config viewer.
      - **Page 5: ⚡ Pipeline Architecture & Cluster Health**: Component health topology, micro-batch execution duration and rate graphs, dead-letter quarantine inspector, and local host resource telemetry.
-     - **Page 6: 📖 System Runbook & Technical Specs**: In-depth architecture breakdown, mathematical rule formulations, operational CLI commands cheat sheet, and complete relational schema data dictionary.
+     - **Page 6: 📖 System Runbook & Technical Specs**: In-depth architecture breakdown, mathematical rule formulations, operational CLI commands cheat sheet, complete relational schema data dictionary, and dedicated **Screenshots** tab.
+     - **Page 7: 📸 Screenshots & Proof Gallery**: Dedicated gallery console with dual view modes (Full Gallery and Individual Inspector) displaying terminal captures, test runs, database counts, and benchmark reports.
+
+---
+
+## 📁 Repository Structure
+
+```
+DE_Fraud_Detection/
+├── config/
+│   └── fraud_rules.yaml          # YAML threshold definitions for 5 detection rules
+├── dashboard/
+│   └── app.py                    # 7-page dark-themed Streamlit operations console
+├── lake/
+│   ├── bronze/                   # Raw ingested JSON records (partitioned by ingestion_date)
+│   └── silver/                   # Normalized, typed events (partitioned by event_date)
+├── producers/
+│   └── transaction_simulator.py  # Synthetic financial event generator with fraud injection
+├── scripts/
+│   └── download_jars.py          # Pre-fetches Spark Kafka connector & PostgreSQL JDBC jars
+├── spark/
+│   ├── fraud_rules.py            # Rule engine: High Value, Velocity, Spending Spike, Declines
+│   ├── schemas.py                # Typed PySpark schema & ISO-8601 strict validation
+│   └── transaction_stream.py     # Structured Streaming pipeline & topic provisioning
+├── storage/
+│   ├── postgres_writer.py        # Thread-safe PostgreSQL connection pool & idempotent upserts
+│   └── schema.sql                # DDL for transactions, fraud_alerts, metrics, quarantine
+├── tests/
+│   ├── test_deduplication.py     # Deterministic SHA-256 alert hash & idempotency tests
+│   ├── test_event_validation.py  # Schema quarantine and range validation tests
+│   └── test_fraud_rules.py       # Unit tests for all 5 mathematical fraud detection rules
+├── Screenshots/                  # Verification captures (CLI, DB queries, pytest, benchmarks)
+├── benchmark.py                  # Multi-rate stress benchmark (10, 25, 50 TPS) & evaluation
+├── docker-compose.yml            # Multi-container orchestration with 7 GB RAM budget
+├── Dockerfile                    # Multi-stage image with Python 3.11 & OpenJDK 17
+├── requirements.txt              # Pinned Python dependencies
+└── README.md                     # Architecture, runbook, test proof & documentation
+```
 
 ---
 

@@ -2,8 +2,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
 
 # Distribution / packaging
@@ -25,41 +23,56 @@ wheels/
 *.egg
 
 # Virtual environments
-.env
-.venv
-env/
+.venv/
 venv/
+env/
 ENV/
 env.bak/
 venv.bak/
 
-# Environment files
+# Environment configurations (Never commit secrets)
+.env
 .env.local
 .env.*.local
+*.env
+!.env.example
 
-# IDEs and Editors
+# IDEs, Editors & OS Files
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# Spark checkpoints and local outputs
+# Spark runtime checkpoints & warehouse data
 checkpoints/*
 !checkpoints/.gitkeep
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+
+# Local Parquet Data Lake storage & logs
 lake/bronze/*
 !lake/bronze/.gitkeep
 lake/silver/*
 !lake/silver/.gitkeep
 data/*
 !data/.gitkeep
+*.parquet
 *.log
 
-# Pytest / Coverage
+# Pytest, Coverage & Profiling
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
 
-# OS files
-.DS_Store
-Thumbs.db
+# Temporary and Scratch Directories
+scratch/
+tmp/
+.tempmediaStorage/
