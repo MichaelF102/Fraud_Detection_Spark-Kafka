@@ -1,0 +1,48 @@
+# Fraud Detection Rules Configuration
+# All thresholds can be customized or overridden via environment variables.
+
+rules:
+  high_value:
+    enabled: true
+    threshold_amount: 5000.00
+    severity: "HIGH"
+    description: "Transaction amount exceeds high-value threshold"
+
+  rapid_transfers:
+    enabled: true
+    window_seconds: 60
+    min_count: 3
+    transaction_types:
+      - "TRANSFER"
+      - "PAYMENT"
+      - "WITHDRAWAL"
+    severity: "HIGH"
+    description: "Rapid burst of transfers detected from the same account within 60 seconds"
+
+  unusual_spending:
+    enabled: true
+    min_baseline_amount: 50.00
+    spike_multiplier: 3.5
+    min_trigger_amount: 1500.00
+    severity: "MEDIUM"
+    description: "Transaction amount is significantly higher than historical account average"
+
+  repeated_failed:
+    enabled: true
+    window_seconds: 300
+    failure_threshold: 3
+    statuses:
+      - "FAILED"
+      - "DECLINED"
+    severity: "CRITICAL"
+    description: "Repeated failed or declined transactions detected within 5 minutes"
+
+  duplicate_transactions:
+    enabled: true
+    window_seconds: 30
+    severity: "MEDIUM"
+    description: "Duplicate transaction event detected within deduplication window"
+
+evaluation:
+  store_multiple_alerts_per_transaction: true
+  deduplication_watermark: "2 minutes"

@@ -1,0 +1,161 @@
+services:
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: fraud_kafka
+    hostname: kafka
+    ports:
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "4L622nShTUiBenA3heKdgw"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list > /dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraud_postgres
+    hostname: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fraud_detection}
+      POSTGRES_USER: ${POSTGRES_USER:-fraud_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraud_secure_pass_2026}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./storage/schema.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fraud_admin} -d ${POSTGRES_DB:-fraud_detection}"]
+      interval: 4s
+      timeout: 4s
+      retries: 6
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    restart: unless-stopped
+
+  spark-stream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud_spark_stream
+    command: python spark/transaction_stream.py
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC_TRANSACTIONS: ${KAFKA_TOPIC_TRANSACTIONS:-financial_transactions}
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-fraud_detection}
+      POSTGRES_USER: ${POSTGRES_USER:-fraud_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraud_secure_pass_2026}
+      CHECKPOINT_PATH: "/app/checkpoints/spark_stream"
+      LAKE_BRONZE_PATH: "/app/lake/bronze"
+      LAKE_SILVER_PATH: "/app/lake/silver"
+      FRAUD_RULES_CONFIG_PATH: "/app/config/fraud_rules.yaml"
+      STREAM_TRIGGER_INTERVAL: ${STREAM_TRIGGER_INTERVAL:-5 seconds}
+    volumes:
+      - spark_checkpoints:/app/checkpoints
+      - lake_data:/app/lake
+      - ./config:/app/config:ro
+      - ./spark:/app/spark:ro
+      - ./storage:/app/storage:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 3072M
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud_dashboard
+    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-fraud_detection}
+      POSTGRES_USER: ${POSTGRES_USER:-fraud_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraud_secure_pass_2026}
+    volumes:
+      - ./dashboard:/app/dashboard:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    restart: unless-stopped
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud_producer
+    command: python producers/transaction_simulator.py --rate 10
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC_TRANSACTIONS: ${KAFKA_TOPIC_TRANSACTIONS:-financial_transactions}
+      TRANSACTION_RATE: ${TRANSACTION_RATE:-10}
+      PRODUCER_SEED: ${PRODUCER_SEED:-42}
+      INJECT_FRAUD_RATIO: ${INJECT_FRAUD_RATIO:-0.15}
+      INJECT_MALFORMED_RATIO: ${INJECT_MALFORMED_RATIO:-0.02}
+    volumes:
+      - ./producers:/app/producers:ro
+      - ./config:/app/config:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    profiles:
+      - producer
+
+volumes:
+  kafka_data:
+    name: fraud_kafka_data
+  pg_data:
+    name: fraud_pg_data
+  spark_checkpoints:
+    name: fraud_spark_checkpoints
+  lake_data:
+    name: fraud_lake_data
+
+networks:
+  default:
+    name: fraud_detection_network
