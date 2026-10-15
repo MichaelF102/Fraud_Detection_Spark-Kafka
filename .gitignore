@@ -55,13 +55,12 @@ metastore_db/
 derby.log
 *.crc
 
-# Local Parquet Data Lake storage & logs
+# Local Parquet Data Lake storage & logs (Git-ignored runtime binary lake)
 lake/bronze/*
 !lake/bronze/.gitkeep
 lake/silver/*
 !lake/silver/.gitkeep
-data/*
-!data/.gitkeep
+data/*.parquet
 *.parquet
 *.log
 

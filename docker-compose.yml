@@ -80,7 +80,8 @@ services:
       STREAM_TRIGGER_INTERVAL: ${STREAM_TRIGGER_INTERVAL:-5 seconds}
     volumes:
       - spark_checkpoints:/app/checkpoints
-      - lake_data:/app/lake
+      - ./lake:/app/lake
+      - ./data:/app/data:ro
       - ./config:/app/config:ro
       - ./spark:/app/spark:ro
       - ./storage:/app/storage:ro
@@ -114,6 +115,8 @@ services:
       - ./config:/app/config:ro
       - ./storage:/app/storage:ro
       - ./Screenshots:/app/Screenshots:ro
+      - ./lake:/app/lake:ro
+      - ./data:/app/data:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,6 +143,7 @@ services:
       - ./producers:/app/producers:ro
       - ./config:/app/config:ro
       - ./benchmark.py:/app/benchmark.py:ro
+      - ./data:/app/data:ro
     depends_on:
       kafka:
         condition: service_healthy
@@ -157,9 +161,8 @@ volumes:
     name: fraud_pg_data
   spark_checkpoints:
     name: fraud_spark_checkpoints
-  lake_data:
-    name: fraud_lake_data
 
 networks:
   default:
     name: fraud_detection_network
+
