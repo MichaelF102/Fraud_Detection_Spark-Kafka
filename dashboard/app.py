@@ -169,6 +169,95 @@ def load_rules_yaml() -> dict:
     return {}
 
 
+def get_screenshot_directory() -> str | None:
+    """Locate the Screenshots directory across Docker and host mount paths."""
+    candidates = [
+        "/app/Screenshots",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Screenshots"),
+        os.path.join(os.getcwd(), "Screenshots"),
+        "Screenshots",
+    ]
+    for c in candidates:
+        if os.path.exists(c) and os.path.isdir(c):
+            return c
+    return None
+
+
+SCREENSHOT_METADATA = {
+    "Screenshot_2026-10-15_11-21-45.png": {
+        "title": "🚀 1. Docker Compose Services Initialization",
+        "badge": "Infrastructure & Kafka KRaft",
+        "desc": "Starting Apache Kafka (KRaft mode, dual listeners), PostgreSQL 16, Streamlit Dashboard, PySpark Structured Streaming processor, and transaction simulator container services.",
+    },
+    "Screenshot_2026-10-15_11-21-55.png": {
+        "title": "📊 2. Production PostgreSQL Rule Trigger Telemetry",
+        "badge": "PostgreSQL Operational Store",
+        "desc": "Verification of 9,968 processed transactions, 9,352 alerts generated across all 5 fraud rules, and 296 quarantined invalid events in PostgreSQL.",
+    },
+    "Screenshot_2026-10-15_11-22-15.png": {
+        "title": "🧪 3. Automated Pytest Suite Execution (100% Pass)",
+        "badge": "CI/CD & Unit Tests",
+        "desc": "14/14 automated unit tests passing in Docker container (deduplication, schema validation, high-value, rapid transfers, unusual spending, repeated failed rules).",
+    },
+    "Screenshot_2026-10-15_11-22-19.png": {
+        "title": "⚡ 4. Low-Rate Benchmark (10 TPS)",
+        "badge": "Streaming Benchmark",
+        "desc": "Emitting and processing transactions with 10 tx/s target rate, testing baseline micro-batch commit.",
+    },
+    "Screenshot_2026-10-15_11-23-06.png": {
+        "title": "📈 5. Mid-Rate Velocity Benchmark (25 TPS)",
+        "badge": "High Velocity & Recall",
+        "desc": "Emitting 200 transactions at 28.7 tx/s with 470 alerts generated and 96.9% recall against synthetic fraud ground truth.",
+    },
+    "Screenshot_2026-10-15_11-23-09.png": {
+        "title": "🔥 6. High-Throughput Burst Benchmark (50 TPS)",
+        "badge": "High-Throughput Burst",
+        "desc": "Streaming 400 transactions at 57.5 tx/s through Kafka into PySpark Structured Streaming with micro-batch commit.",
+    },
+    "Screenshot_2026-10-15_11-24-02.png": {
+        "title": "🏆 7. End-to-End Benchmark Summary Report",
+        "badge": "Performance Matrix",
+        "desc": "Final benchmark summary matrix across 10, 25, and 50 TPS measuring emission rate, processed count, alerts, latency, precision, recall (up to 96.9%), and F1 score.",
+    },
+}
+
+
+def render_screenshots_gallery(expanded: bool = True):
+    """Render all captured pipeline execution screenshots from the Screenshots folder."""
+    st.subheader("📸 Pipeline Execution Screenshots & Verification Proof")
+    st.markdown("Visual evidence and terminal telemetry captured during end-to-end pipeline execution, automated test suite verification, and benchmarking:")
+
+    screenshot_dir = get_screenshot_directory()
+    if not screenshot_dir:
+        st.warning("⚠️ Screenshots directory not found. Please ensure `./Screenshots` is available.")
+        return
+
+    images = sorted([
+        f for f in os.listdir(screenshot_dir)
+        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
+    ])
+
+    if not images:
+        st.info("ℹ️ No screenshot files found in `Screenshots/` folder.")
+        return
+
+    st.markdown(f"**Found {len(images)} captured execution artifacts** in `{screenshot_dir}`:")
+
+    for idx, img_name in enumerate(images, 1):
+        img_path = os.path.join(screenshot_dir, img_name)
+        info = SCREENSHOT_METADATA.get(img_name, {
+            "title": f"📸 {idx}. {img_name}",
+            "badge": "Artifact",
+            "desc": f"Screenshot file: {img_name}",
+        })
+        file_size_kb = os.path.getsize(img_path) / 1024.0
+
+        with st.expander(f"**{info['title']}** — `{info['badge']}` ({file_size_kb:.1f} KB)", expanded=expanded):
+            st.markdown(f"*{info['desc']}*")
+            st.image(img_path, caption=info["title"], use_container_width=True)
+            st.caption(f"📁 Local File: `{img_path}` • File Size: `{file_size_kb:.1f} KB`")
+
+
 # ==============================================================================
 # SIDEBAR NAVIGATION & TELEMETRY CONTROLS
 # ==============================================================================
@@ -187,6 +276,7 @@ page = st.sidebar.radio(
         "⚙️ 4. Detection Rules & Interactive Simulator",
         "⚡ 5. Pipeline Architecture & Cluster Health",
         "📖 6. System Runbook & Technical Specs",
+        "📸 7. Screenshots & Proof Gallery",
     ],
     index=0,
 )
@@ -218,230 +308,235 @@ if page == "🔴 1. Live Telemetry & Monitoring":
     st.title("🛡️ Real-Time Fraud Operations Center")
     st.caption("Live streaming event telemetry processed via Apache Spark Structured Streaming and PostgreSQL")
 
-    # Fetch aggregate pipeline metrics
-    kpi_df = query_df("""
-        SELECT 
-            (SELECT COUNT(*) FROM transactions) AS total_tx,
-            (SELECT COUNT(DISTINCT transaction_id) FROM fraud_alerts) AS flagged_tx,
-            (SELECT COUNT(*) FROM fraud_alerts) AS total_alerts,
-            (SELECT COUNT(*) FROM quarantine_events) AS quarantined,
-            (SELECT COALESCE(SUM(amount), 0) FROM transactions) AS total_vol_usd,
-            (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t JOIN fraud_alerts fa ON t.transaction_id = fa.transaction_id) AS flagged_vol_usd,
-            (SELECT MAX(ingestion_timestamp) FROM transactions) AS last_update
-    """)
+    tab_live, tab_screenshots = st.tabs(["📊 Live Operations Telemetry", "📸 Screenshots"])
 
-    if kpi_df.empty or kpi_df["total_tx"].iloc[0] == 0:
-        st.info("ℹ️ Pipeline is listening on Kafka topic `financial_transactions`. Waiting for incoming transaction events...")
-        st.stop()
+    with tab_screenshots:
+        render_screenshots_gallery()
 
-    kpi = kpi_df.iloc[0]
-    total_tx = int(kpi["total_tx"] or 0)
-    flagged_tx = int(kpi["flagged_tx"] or 0)
-    total_alerts = int(kpi["total_alerts"] or 0)
-    quarantined = int(kpi["quarantined"] or 0)
-    total_vol = float(kpi["total_vol_usd"] or 0.0)
-    flagged_vol = float(kpi["flagged_vol_usd"] or 0.0)
-    alert_rate = (flagged_tx / total_tx * 100.0) if total_tx > 0 else 0.0
-
-    # Calculate real-time TPS in last 60 seconds
-    tps_df = query_df("""
-        SELECT COUNT(*)::float / 60.0 AS tps
-        FROM transactions
-        WHERE ingestion_timestamp >= NOW() - INTERVAL '60 seconds'
-    """)
-    current_tps = float(tps_df["tps"].iloc[0]) if not tps_df.empty and tps_df["tps"].iloc[0] else 0.0
-
-    # 6 Top Metric Cards
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    with m1:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-title">Ingested Tx</div>
-            <div class="kpi-value">{total_tx:,}</div>
-            <div class="kpi-subtext">Kafka stream count</div>
-        </div>""", unsafe_allow_html=True)
-    with m2:
-        st.markdown(f"""
-        <div class="kpi-card kpi-card-danger">
-            <div class="kpi-title">Flagged Fraud</div>
-            <div class="kpi-value" style="color: #f87171;">{flagged_tx:,}</div>
-            <div class="kpi-subtext">{alert_rate:.1f}% alert rate</div>
-        </div>""", unsafe_allow_html=True)
-    with m3:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-title">Alert Triggers</div>
-            <div class="kpi-value" style="color: #fb923c;">{total_alerts:,}</div>
-            <div class="kpi-subtext">Multi-rule triggers</div>
-        </div>""", unsafe_allow_html=True)
-    with m4:
-        st.markdown(f"""
-        <div class="kpi-card kpi-card-success">
-            <div class="kpi-title">Throughput</div>
-            <div class="kpi-value" style="color: #38bdf8;">{current_tps:.1f} <span style="font-size: 1rem;">tx/s</span></div>
-            <div class="kpi-subtext">Live 60s ingestion</div>
-        </div>""", unsafe_allow_html=True)
-    with m5:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-title">Total Volume</div>
-            <div class="kpi-value">${total_vol:,.0f}</div>
-            <div class="kpi-subtext">Gross processed</div>
-        </div>""", unsafe_allow_html=True)
-    with m6:
-        st.markdown(f"""
-        <div class="kpi-card kpi-card-warning">
-            <div class="kpi-title">Quarantined</div>
-            <div class="kpi-value" style="color: #fbbf24;">{quarantined:,}</div>
-            <div class="kpi-subtext">Malformed/Dead-letter</div>
-        </div>""", unsafe_allow_html=True)
-
-    # Row 1: Timeseries Volume & Severity Breakdown
-    c_left, c_right = st.columns([2, 1])
-
-    with c_left:
-        st.subheader("📈 Ingestion Velocity & Fraud Detection Pulse")
-        trend_df = query_df("""
+    with tab_live:
+        # Fetch aggregate pipeline metrics
+        kpi_df = query_df("""
             SELECT 
-                DATE_TRUNC('minute', t.event_timestamp) AS time_bucket,
-                COUNT(*) AS total_tx,
-                COUNT(DISTINCT fa.transaction_id) AS flagged_tx,
-                SUM(CASE WHEN t.is_fraud_ground_truth THEN 1 ELSE 0 END) AS injected_fraud
-            FROM transactions t
-            LEFT JOIN fraud_alerts fa ON t.transaction_id = fa.transaction_id
-            WHERE t.event_timestamp >= NOW() - INTERVAL '30 minutes'
-            GROUP BY 1
-            ORDER BY 1 ASC
+                (SELECT COUNT(*) FROM transactions) AS total_tx,
+                (SELECT COUNT(DISTINCT transaction_id) FROM fraud_alerts) AS flagged_tx,
+                (SELECT COUNT(*) FROM fraud_alerts) AS total_alerts,
+                (SELECT COUNT(*) FROM quarantine_events) AS quarantined,
+                (SELECT COALESCE(SUM(amount), 0) FROM transactions) AS total_vol_usd,
+                (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t JOIN fraud_alerts fa ON t.transaction_id = fa.transaction_id) AS flagged_vol_usd,
+                (SELECT MAX(ingestion_timestamp) FROM transactions) AS last_update
         """)
-        if not trend_df.empty:
-            fig_trend = go.Figure()
-            fig_trend.add_trace(go.Scatter(
-                x=trend_df["time_bucket"],
-                y=trend_df["total_tx"],
-                name="Total Transactions",
-                mode="lines+markers",
-                line=dict(color="#38bdf8", width=2.5),
-                fill="tozeroy",
-                fillcolor="rgba(56, 189, 248, 0.08)",
-            ))
-            fig_trend.add_trace(go.Bar(
-                x=trend_df["time_bucket"],
-                y=trend_df["flagged_tx"],
-                name="Flagged by Rules",
-                marker_color="#f97316",
-                opacity=0.85,
-            ))
-            fig_trend.add_trace(go.Scatter(
-                x=trend_df["time_bucket"],
-                y=trend_df["injected_fraud"],
-                name="Ground-Truth Fraud",
-                mode="lines",
-                line=dict(color="#ef4444", width=2, dash="dash"),
-            ))
-            fig_trend.update_layout(
-                template="plotly_dark",
-                height=320,
-                margin=dict(l=10, r=10, t=10, b=10),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig_trend, use_container_width=True)
+
+        if kpi_df.empty or kpi_df["total_tx"].iloc[0] == 0:
+            st.info("ℹ️ Pipeline is listening on Kafka topic `financial_transactions`. Waiting for incoming transaction events...")
         else:
-            st.caption("No volume in the last 30 minutes.")
+            kpi = kpi_df.iloc[0]
+            total_tx = int(kpi["total_tx"] or 0)
+            flagged_tx = int(kpi["flagged_tx"] or 0)
+            total_alerts = int(kpi["total_alerts"] or 0)
+            quarantined = int(kpi["quarantined"] or 0)
+            total_vol = float(kpi["total_vol_usd"] or 0.0)
+            flagged_vol = float(kpi["flagged_vol_usd"] or 0.0)
+            alert_rate = (flagged_tx / total_tx * 100.0) if total_tx > 0 else 0.0
 
-    with c_right:
-        st.subheader("⚠️ Alert Severity Matrix")
-        sev_df = query_df("""
-            SELECT severity, COUNT(*) AS count
-            FROM fraud_alerts
-            GROUP BY severity
-        """)
-        if not sev_df.empty:
-            color_map = {
-                "CRITICAL": "#ef4444",
-                "HIGH": "#f97316",
-                "MEDIUM": "#eab308",
-                "LOW": "#38bdf8"
-            }
-            fig_sev = px.pie(
-                sev_df,
-                names="severity",
-                values="count",
-                hole=0.55,
-                color="severity",
-                color_discrete_map=color_map,
-            )
-            fig_sev.update_layout(
-                template="plotly_dark",
-                height=320,
-                margin=dict(l=10, r=10, t=10, b=10),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig_sev, use_container_width=True)
-        else:
-            st.caption("No alerts generated yet.")
+            # Calculate real-time TPS in last 60 seconds
+            tps_df = query_df("""
+                SELECT COUNT(*)::float / 60.0 AS tps
+                FROM transactions
+                WHERE ingestion_timestamp >= NOW() - INTERVAL '60 seconds'
+            """)
+            current_tps = float(tps_df["tps"].iloc[0]) if not tps_df.empty and tps_df["tps"].iloc[0] else 0.0
 
-    # Row 2: Top Triggered Rules & Live Stream
-    c_rules, c_stream = st.columns([1, 1.8])
+            # 6 Top Metric Cards
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
+            with m1:
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">Ingested Tx</div>
+                    <div class="kpi-value">{total_tx:,}</div>
+                    <div class="kpi-subtext">Kafka stream count</div>
+                </div>""", unsafe_allow_html=True)
+            with m2:
+                st.markdown(f"""
+                <div class="kpi-card kpi-card-danger">
+                    <div class="kpi-title">Flagged Fraud</div>
+                    <div class="kpi-value" style="color: #f87171;">{flagged_tx:,}</div>
+                    <div class="kpi-subtext">{alert_rate:.1f}% alert rate</div>
+                </div>""", unsafe_allow_html=True)
+            with m3:
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">Alert Triggers</div>
+                    <div class="kpi-value" style="color: #fb923c;">{total_alerts:,}</div>
+                    <div class="kpi-subtext">Multi-rule triggers</div>
+                </div>""", unsafe_allow_html=True)
+            with m4:
+                st.markdown(f"""
+                <div class="kpi-card kpi-card-success">
+                    <div class="kpi-title">Throughput</div>
+                    <div class="kpi-value" style="color: #38bdf8;">{current_tps:.1f} <span style="font-size: 1rem;">tx/s</span></div>
+                    <div class="kpi-subtext">Live 60s ingestion</div>
+                </div>""", unsafe_allow_html=True)
+            with m5:
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">Total Volume</div>
+                    <div class="kpi-value">${total_vol:,.0f}</div>
+                    <div class="kpi-subtext">Gross processed</div>
+                </div>""", unsafe_allow_html=True)
+            with m6:
+                st.markdown(f"""
+                <div class="kpi-card kpi-card-warning">
+                    <div class="kpi-title">Quarantined</div>
+                    <div class="kpi-value" style="color: #fbbf24;">{quarantined:,}</div>
+                    <div class="kpi-subtext">Malformed/Dead-letter</div>
+                </div>""", unsafe_allow_html=True)
 
-    with c_rules:
-        st.subheader("🎯 Most Frequently Triggered Rules")
-        rules_df = query_df("""
-            SELECT rule_name, COUNT(*) AS triggers
-            FROM fraud_alerts
-            GROUP BY rule_name
-            ORDER BY triggers DESC
-            LIMIT 6
-        """)
-        if not rules_df.empty:
-            fig_rules = px.bar(
-                rules_df,
-                x="triggers",
-                y="rule_name",
-                orientation="h",
-                color="triggers",
-                color_continuous_scale="Viridis",
-            )
-            fig_rules.update_layout(
-                template="plotly_dark",
-                height=300,
-                margin=dict(l=10, r=10, t=10, b=10),
-                yaxis=dict(autorange="reversed"),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig_rules, use_container_width=True)
-        else:
-            st.caption("No rules triggered yet.")
+            # Row 1: Timeseries Volume & Severity Breakdown
+            c_left, c_right = st.columns([2, 1])
 
-    with c_stream:
-        st.subheader("🕒 Live Transaction Ingestion Feed")
-        live_stream_df = query_df("""
-            SELECT 
-                t.transaction_id,
-                t.account_id,
-                t.amount,
-                t.transaction_type,
-                t.status,
-                t.event_timestamp,
-                fa.rule_name,
-                fa.severity
-            FROM transactions t
-            LEFT JOIN fraud_alerts fa ON t.transaction_id = fa.transaction_id
-            ORDER BY t.event_timestamp DESC
-            LIMIT 8
-        """)
-        st.dataframe(
-            live_stream_df,
-            use_container_width=True,
-            height=300,
-            column_config={
-                "amount": st.column_config.NumberColumn("Amount ($)", format="$%.2f"),
-                "event_timestamp": st.column_config.DatetimeColumn("Event Time", format="HH:mm:ss"),
-            }
-        )
+            with c_left:
+                st.subheader("📈 Ingestion Velocity & Fraud Detection Pulse")
+                trend_df = query_df("""
+                    SELECT 
+                        DATE_TRUNC('minute', t.event_timestamp) AS time_bucket,
+                        COUNT(*) AS total_tx,
+                        COUNT(DISTINCT fa.transaction_id) AS flagged_tx,
+                        SUM(CASE WHEN t.is_fraud_ground_truth THEN 1 ELSE 0 END) AS injected_fraud
+                    FROM transactions t
+                    LEFT JOIN fraud_alerts fa ON t.transaction_id = fa.transaction_id
+                    WHERE t.event_timestamp >= NOW() - INTERVAL '30 minutes'
+                    GROUP BY 1
+                    ORDER BY 1 ASC
+                """)
+                if not trend_df.empty:
+                    fig_trend = go.Figure()
+                    fig_trend.add_trace(go.Scatter(
+                        x=trend_df["time_bucket"],
+                        y=trend_df["total_tx"],
+                        name="Total Transactions",
+                        mode="lines+markers",
+                        line=dict(color="#38bdf8", width=2.5),
+                        fill="tozeroy",
+                        fillcolor="rgba(56, 189, 248, 0.08)",
+                    ))
+                    fig_trend.add_trace(go.Bar(
+                        x=trend_df["time_bucket"],
+                        y=trend_df["flagged_tx"],
+                        name="Flagged by Rules",
+                        marker_color="#f97316",
+                        opacity=0.85,
+                    ))
+                    fig_trend.add_trace(go.Scatter(
+                        x=trend_df["time_bucket"],
+                        y=trend_df["injected_fraud"],
+                        name="Ground-Truth Fraud",
+                        mode="lines",
+                        line=dict(color="#ef4444", width=2, dash="dash"),
+                    ))
+                    fig_trend.update_layout(
+                        template="plotly_dark",
+                        height=320,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(fig_trend, use_container_width=True)
+                else:
+                    st.caption("No volume in the last 30 minutes.")
+
+            with c_right:
+                st.subheader("⚠️ Alert Severity Matrix")
+                sev_df = query_df("""
+                    SELECT severity, COUNT(*) AS count
+                    FROM fraud_alerts
+                    GROUP BY severity
+                """)
+                if not sev_df.empty:
+                    color_map = {
+                        "CRITICAL": "#ef4444",
+                        "HIGH": "#f97316",
+                        "MEDIUM": "#eab308",
+                        "LOW": "#38bdf8"
+                    }
+                    fig_sev = px.pie(
+                        sev_df,
+                        names="severity",
+                        values="count",
+                        hole=0.55,
+                        color="severity",
+                        color_discrete_map=color_map,
+                    )
+                    fig_sev.update_layout(
+                        template="plotly_dark",
+                        height=320,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(fig_sev, use_container_width=True)
+                else:
+                    st.caption("No alerts generated yet.")
+
+            # Row 2: Top Triggered Rules & Live Stream
+            c_rules, c_stream = st.columns([1, 1.8])
+
+            with c_rules:
+                st.subheader("🎯 Most Frequently Triggered Rules")
+                rules_df = query_df("""
+                    SELECT rule_name, COUNT(*) AS triggers
+                    FROM fraud_alerts
+                    GROUP BY rule_name
+                    ORDER BY triggers DESC
+                    LIMIT 6
+                """)
+                if not rules_df.empty:
+                    fig_rules = px.bar(
+                        rules_df,
+                        x="triggers",
+                        y="rule_name",
+                        orientation="h",
+                        color="triggers",
+                        color_continuous_scale="Viridis",
+                    )
+                    fig_rules.update_layout(
+                        template="plotly_dark",
+                        height=300,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        yaxis=dict(autorange="reversed"),
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(fig_rules, use_container_width=True)
+                else:
+                    st.caption("No rules triggered yet.")
+
+            with c_stream:
+                st.subheader("🕒 Live Transaction Ingestion Feed")
+                live_stream_df = query_df("""
+                    SELECT 
+                        t.transaction_id,
+                        t.account_id,
+                        t.amount,
+                        t.transaction_type,
+                        t.status,
+                        t.event_timestamp,
+                        fa.rule_name,
+                        fa.severity
+                    FROM transactions t
+                    LEFT JOIN fraud_alerts fa ON t.transaction_id = fa.transaction_id
+                    ORDER BY t.event_timestamp DESC
+                    LIMIT 8
+                """)
+                st.dataframe(
+                    live_stream_df,
+                    use_container_width=True,
+                    height=300,
+                    column_config={
+                        "amount": st.column_config.NumberColumn("Amount ($)", format="$%.2f"),
+                        "event_timestamp": st.column_config.DatetimeColumn("Event Time", format="HH:mm:ss"),
+                    }
+                )
 
 
 # ==============================================================================
@@ -990,7 +1085,13 @@ elif page == "📖 6. System Runbook & Technical Specs":
     st.title("📖 System Runbook, Architecture & Technical Specs")
     st.caption("Comprehensive data engineering documentation, mathematical rule definitions, and CLI operational guide")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["🏛️ Architecture & Guarantees", "📐 Mathematical Formulations", "💻 CLI Runbook", "🗄️ Relational Schema"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🏛️ Architecture & Guarantees",
+        "📐 Mathematical Formulations",
+        "💻 CLI Runbook",
+        "🗄️ Relational Schema",
+        "📸 Screenshots",
+    ])
 
     with tab1:
         st.markdown("""
@@ -1111,3 +1212,41 @@ elif page == "📖 6. System Runbook & Technical Specs":
         );
         ```
         """)
+
+    with tab5:
+        render_screenshots_gallery()
+
+
+# ==============================================================================
+# PAGE 7: SCREENSHOTS & PROOF GALLERY
+# ==============================================================================
+elif page == "📸 7. Screenshots & Proof Gallery":
+    st.title("📸 Pipeline Screenshots & Execution Evidence")
+    st.caption("Visual confirmation and terminal captures of services, tests, database queries, and benchmarks")
+
+    col_sel1, col_sel2 = st.columns([1, 2])
+    with col_sel1:
+        st.markdown("### 🗂️ Select View Mode")
+        view_mode = st.radio("Display Layout", ["Full Gallery (All Images)", "Individual Inspector (One by One)"])
+
+    screenshot_dir = get_screenshot_directory()
+    if screenshot_dir:
+        images = sorted([
+            f for f in os.listdir(screenshot_dir)
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
+        ])
+        if view_mode == "Full Gallery (All Images)":
+            render_screenshots_gallery()
+        else:
+            selected_img = st.selectbox("Choose Screenshot:", images, format_func=lambda x: SCREENSHOT_METADATA.get(x, {}).get("title", x))
+            if selected_img:
+                img_path = os.path.join(screenshot_dir, selected_img)
+                info = SCREENSHOT_METADATA.get(selected_img, {"title": selected_img, "desc": "", "badge": "Capture"})
+                st.markdown(f"### {info['title']}")
+                st.markdown(f"*{info['desc']}*")
+                st.image(img_path, caption=info['title'], use_container_width=True)
+                st.caption(f"📁 Source: `{img_path}`")
+    else:
+        st.warning("Screenshots directory not found.")
+
+

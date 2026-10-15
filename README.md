@@ -229,6 +229,40 @@ The benchmark reports:
 
 ---
 
+## 📸 Screenshots & Execution Evidence
+
+The pipeline includes visual evidence and terminal telemetry captured during end-to-end execution, database querying, automated unit tests, and multi-rate performance benchmarking:
+
+### 1. Docker Compose Services Initialization
+Starting Apache Kafka (KRaft mode, dual listeners), PostgreSQL 16, Streamlit Dashboard, PySpark Structured Streaming processor, and transaction simulator container services.
+![Docker Compose Services Initialization](Screenshots/Screenshot_2026-10-15_11-21-45.png)
+
+### 2. Production PostgreSQL Rule Trigger Telemetry
+Verification of 9,968 processed transactions, 9,352 alerts generated across all 5 fraud rules, and 296 quarantined invalid events in PostgreSQL.
+![PostgreSQL Rule Trigger Telemetry](Screenshots/Screenshot_2026-10-15_11-21-55.png)
+
+### 3. Automated Pytest Suite Execution (100% Pass)
+14/14 automated unit tests passing in Docker container (`test_deduplication.py`, `test_event_validation.py`, `test_fraud_rules.py`).
+![Automated Pytest Suite Execution](Screenshots/Screenshot_2026-10-15_11-22-15.png)
+
+### 4. Low-Rate Benchmark (10 TPS)
+Emitting and processing transactions with 10 tx/s target rate, testing baseline micro-batch commit.
+![Low-Rate Benchmark (10 TPS)](Screenshots/Screenshot_2026-10-15_11-22-19.png)
+
+### 5. Mid-Rate Velocity Benchmark (25 TPS)
+Emitting 200 transactions at 28.7 tx/s with 470 alerts generated and 96.9% recall against synthetic fraud ground truth.
+![Mid-Rate Velocity Benchmark (25 TPS)](Screenshots/Screenshot_2026-10-15_11-23-06.png)
+
+### 6. High-Throughput Burst Benchmark (50 TPS)
+Streaming 400 transactions at 57.5 tx/s through Kafka into PySpark Structured Streaming with micro-batch commit.
+![High-Throughput Burst Benchmark (50 TPS)](Screenshots/Screenshot_2026-10-15_11-23-09.png)
+
+### 7. End-to-End Benchmark Summary Report
+Final benchmark summary matrix across 10, 25, and 50 TPS measuring emission rate, processed count, alerts, latency, precision, recall (up to 96.9%), and F1 score.
+![End-to-End Benchmark Summary Report](Screenshots/Screenshot_2026-10-15_11-24-02.png)
+
+---
+
 ## 🔧 Troubleshooting
 
 ### 1. Kafka Container Readiness
