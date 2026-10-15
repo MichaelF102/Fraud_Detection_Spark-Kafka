@@ -48,10 +48,13 @@ flowchart LR
    - **Silver Lake (`lake/silver/`)**: Cleaned, typed, normalized transactions partitioned by `event_date`.
 
 5. **Operations Dashboard (`dashboard/app.py`)**:
-   - Dark-themed financial monitoring cockpit built with Streamlit and Plotly.
-   - **Page 1: Live Monitoring**: Real-time throughput (TPS), alert rate, severity breakdown, timeseries volume, recent transaction stream.
-   - **Page 2: Fraud Investigation**: Search by Account ID or Transaction ID, severity filters, rule filters, forensic account transaction history, related alerts.
-   - **Page 3: Pipeline Performance**: Micro-batch latency, processing rates, quarantine counts, local CPU/RAM utilization.
+   - High-end dark-themed financial monitoring cockpit built with Streamlit and Plotly across **6 interactive pages**:
+     - **Page 1: 🔴 Live Telemetry & Monitoring**: Real-time throughput (TPS), alert rate, severity matrix donut chart, 30-min timeseries velocity pulse, gross financial volume, and live transaction feed.
+     - **Page 2: 🔍 Fraud Forensic Investigation**: Multi-dimensional search (Account ID, Transaction UUID, severity, rule, min amount), interactive alert inspector, Account 360° forensic timeline scatter chart, and full account ledger.
+     - **Page 3: 💰 Financial Risk & Merchant Analytics**: Total Value-at-Risk ($ flagged vs gross volume), fraud ticket size multiples, merchant risk ranking leaderboard & heatmaps, transaction modality breakdown, and log-scale amount distributions.
+     - **Page 4: ⚙️ Detection Rules & Interactive Simulator**: Trigger performance by rule, live interactive sandbox simulator to test custom transaction attributes against the engine in real-time, and live YAML rule config viewer.
+     - **Page 5: ⚡ Pipeline Architecture & Cluster Health**: Component health topology, micro-batch execution duration and rate graphs, dead-letter quarantine inspector, and local host resource telemetry.
+     - **Page 6: 📖 System Runbook & Technical Specs**: In-depth architecture breakdown, mathematical rule formulations, operational CLI commands cheat sheet, and complete relational schema data dictionary.
 
 ---
 
