@@ -66,7 +66,15 @@ DE_Fraud_Detection/
 ├── config/
 │   └── fraud_rules.yaml          # YAML threshold definitions for 5 detection rules
 ├── dashboard/
-│   └── app.py                    # 7-page dark-themed Streamlit operations console
+│   ├── app.py                    # Real-time operations center (Landing Page)
+│   ├── common.py                 # Shared database pool, CSS design system, and gallery helpers
+│   └── pages/                    # Native Streamlit multi-page application structure
+│       ├── 1_🔍_Forensic_Investigation.py
+│       ├── 2_💰_Risk_and_Merchant_Analytics.py
+│       ├── 3_⚙️_Rules_and_Simulator.py
+│       ├── 4_⚡_Cluster_Health.py
+│       ├── 5_📖_Runbook_and_Specs.py
+│       └── 6_📸_Screenshots.py
 ├── lake/
 │   ├── bronze/                   # Raw ingested JSON records (partitioned by ingestion_date)
 │   └── silver/                   # Normalized, typed events (partitioned by event_date)
