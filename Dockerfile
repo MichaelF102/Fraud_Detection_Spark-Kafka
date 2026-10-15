@@ -17,9 +17,10 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 WORKDIR /app
 
 # Install pinned Python dependencies
-COPY requirements.txt .
+COPY requirements.txt requirements-spark.txt ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-spark.txt
 
 # Download Spark Kafka connector & PostgreSQL JDBC drivers
 COPY scripts/download_jars.py scripts/

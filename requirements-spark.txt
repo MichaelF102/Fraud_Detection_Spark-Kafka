@@ -1,0 +1,4 @@
+# PySpark & Distributed Streaming Dependencies (Used inside Docker)
+pyspark==3.5.8
+kafka-python-ng==2.2.3
+pytest==8.3.4

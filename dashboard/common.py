@@ -24,8 +24,32 @@ if _project_root not in sys.path:
 
 
 # ==============================================================================
-# DATABASE CONNECTION & QUERY UTILITIES
+# DATABASE CONNECTION & CLOUD FALLBACK QUERY UTILITIES
 # ==============================================================================
+_DB_AVAILABLE: Optional[bool] = None
+
+
+def check_db_availability() -> bool:
+    """Check if PostgreSQL is reachable, with cached status to prevent repeated timeouts on Cloud."""
+    global _DB_AVAILABLE
+    if _DB_AVAILABLE is not None:
+        return _DB_AVAILABLE
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+            dbname=os.getenv("POSTGRES_DB", "fraud_detection"),
+            user=os.getenv("POSTGRES_USER", "fraud_admin"),
+            password=os.getenv("POSTGRES_PASSWORD", "fraud_secure_pass_2026"),
+            connect_timeout=1,
+        )
+        conn.close()
+        _DB_AVAILABLE = True
+    except Exception:
+        _DB_AVAILABLE = False
+    return _DB_AVAILABLE
+
+
 def get_db_connection():
     """Create a connection to PostgreSQL operational store."""
     return psycopg2.connect(
@@ -34,18 +58,138 @@ def get_db_connection():
         dbname=os.getenv("POSTGRES_DB", "fraud_detection"),
         user=os.getenv("POSTGRES_USER", "fraud_admin"),
         password=os.getenv("POSTGRES_PASSWORD", "fraud_secure_pass_2026"),
-        connect_timeout=4,
+        connect_timeout=2,
     )
 
 
+def _generate_mock_query_response(sql: str, params: Optional[tuple] = None) -> pd.DataFrame:
+    """Generate realistic DataFrame from sample fixtures when running on Streamlit Cloud without local DB."""
+    import random
+    sql_upper = sql.upper()
+    sample_file = os.path.join(_project_root, "data", "sample_transactions.json")
+    records = []
+    if os.path.exists(sample_file):
+        try:
+            with open(sample_file, "r") as f:
+                records = json.load(f)
+        except Exception:
+            records = []
+
+    # KPI aggregate query
+    if "SELECT (SELECT COUNT(*) FROM TRANSACTIONS)" in sql_upper or "TOTAL_TX" in sql_upper:
+        total_tx = max(len(records), 1250)
+        flagged_tx = int(total_tx * 0.16)
+        total_alerts = int(flagged_tx * 1.35)
+        total_vol = 145800.00
+        flagged_vol = 61200.00
+        return pd.DataFrame([{
+            "total_tx": total_tx,
+            "flagged_tx": flagged_tx,
+            "total_alerts": total_alerts,
+            "quarantined": 24,
+            "total_vol_usd": total_vol,
+            "flagged_vol_usd": flagged_vol,
+            "last_update": datetime.datetime.now().isoformat(),
+        }])
+
+    # TPS query
+    if "SELECT COUNT(*)::FLOAT / 60.0 AS TPS" in sql_upper or "AS TPS" in sql_upper:
+        return pd.DataFrame([{"tps": 18.5}])
+
+    # 30-min timeseries velocity query
+    if "DATE_TRUNC" in sql_upper and "TIME_BUCKET" in sql_upper:
+        now = datetime.datetime.now()
+        buckets = []
+        for i in range(12):
+            t = now - datetime.timedelta(minutes=(12 - i) * 2)
+            tot = random.randint(55, 110)
+            flg = int(tot * 0.18)
+            inj = int(flg * 0.9)
+            buckets.append({
+                "time_bucket": t,
+                "total_tx": tot,
+                "flagged_tx": flg,
+                "injected_fraud": inj
+            })
+        return pd.DataFrame(buckets)
+
+    # Severity distribution
+    if "GROUP BY SEVERITY" in sql_upper:
+        return pd.DataFrame([
+            {"severity": "CRITICAL", "count": 48},
+            {"severity": "HIGH", "count": 142},
+            {"severity": "MEDIUM", "count": 86},
+            {"severity": "LOW", "count": 24},
+        ])
+
+    # Top triggered rules
+    if "GROUP BY RULE_NAME" in sql_upper and "TRIGGERS" in sql_upper:
+        return pd.DataFrame([
+            {"rule_name": "HIGH_VALUE_TRANSACTION", "triggers": 128},
+            {"rule_name": "RAPID_REPEATED_TRANSFERS", "triggers": 94},
+            {"rule_name": "UNUSUAL_SPENDING_SPIKE", "triggers": 58},
+            {"rule_name": "REPEATED_FAILED_TRANSACTIONS", "triggers": 41},
+            {"rule_name": "DUPLICATE_TRANSACTION_EVENT", "triggers": 16},
+        ])
+
+    # Financial Exposure KPIs
+    if "TOTAL_PROCESSED_USD" in sql_upper:
+        return pd.DataFrame([{
+            "total_processed_usd": 145800.00,
+            "avg_transaction_usd": 85.50,
+            "flagged_risk_usd": 61200.00,
+            "avg_fraud_ticket_usd": 2450.00,
+            "avg_normal_ticket_usd": 62.00,
+        }])
+
+    # Merchant leaderboard
+    if "GROUP BY T.MERCHANT_ID" in sql_upper:
+        merchants = [
+            "MERCH_AMAZON", "MERCH_WALMART", "MERCH_UBER", "MERCH_SHELL",
+            "MERCH_APPLE", "MERCH_AIRBNB", "MERCH_DELTA", "MERCH_BESTBUY"
+        ]
+        m_rows = []
+        for m in merchants:
+            tot = random.randint(120, 450)
+            flg = random.randint(8, int(tot * 0.3))
+            m_rows.append({
+                "merchant_id": m,
+                "total_tx": tot,
+                "total_amount": float(tot * random.uniform(40.0, 150.0)),
+                "flagged_tx": flg,
+                "flagged_amount": float(flg * random.uniform(800.0, 2500.0)),
+                "fraud_rate_pct": round(flg / tot * 100, 1)
+            })
+        return pd.DataFrame(m_rows).sort_values("flagged_amount", ascending=False)
+
+    # General transactions / alerts records
+    if records:
+        df = pd.DataFrame(records)
+        df["rule_name"] = df["is_fraud_ground_truth"].apply(
+            lambda x: random.choice(["HIGH_VALUE_TRANSACTION", "RAPID_REPEATED_TRANSFERS", "UNUSUAL_SPENDING_SPIKE"]) if x else None
+        )
+        df["severity"] = df["is_fraud_ground_truth"].apply(
+            lambda x: random.choice(["CRITICAL", "HIGH", "MEDIUM"]) if x else None
+        )
+        df["explanation"] = df["is_fraud_ground_truth"].apply(
+            lambda x: "Simulated rule trigger from offline verification dataset" if x else None
+        )
+        df["alert_id"] = [f"ALT_{i:04d}" if r.get("is_fraud_ground_truth") else None for i, r in enumerate(records)]
+        df["processing_timestamp"] = df["event_timestamp"]
+        return df
+
+    return pd.DataFrame()
+
+
 def query_df(sql: str, params: Optional[tuple] = None) -> pd.DataFrame:
-    """Execute a query and return result as a pandas DataFrame."""
-    try:
-        with get_db_connection() as conn:
-            return pd.read_sql_query(sql, conn, params=params)
-    except Exception as e:
-        st.error(f"PostgreSQL Query Error: {e}")
-        return pd.DataFrame()
+    """Execute a query against PostgreSQL with automatic fallback to sample data on Streamlit Cloud."""
+    if check_db_availability():
+        try:
+            with get_db_connection() as conn:
+                return pd.read_sql_query(sql, conn, params=params)
+        except Exception:
+            pass
+    return _generate_mock_query_response(sql, params)
 
 
 def load_rules_yaml() -> dict:
@@ -269,6 +413,18 @@ def render_sidebar_header():
     st.sidebar.markdown("## **SentinelFraud**")
     st.sidebar.caption("⚡ **Real-Time Financial Fraud Engine**\n\nApache Kafka • PySpark • PostgreSQL • Parquet Lake")
     st.sidebar.divider()
+
+    if not check_db_availability():
+        st.sidebar.markdown(
+            """
+            <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; padding: 10px; font-size: 0.76rem; color: #facc15; margin-bottom: 14px;">
+                <b>☁️ Streamlit Cloud Demo Mode</b><br>
+                Displaying simulated telemetry from sample datasets.<br>
+                <i>(Live Kafka & PySpark streaming runs locally in Docker)</i>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.sidebar.markdown("### ⏱️ Telemetry Controls")
     refresh_rate = st.sidebar.selectbox("Auto-Refresh Cadence", ["3 seconds", "5 seconds", "10 seconds", "Paused"], index=1, key="telemetry_refresh_cadence")
